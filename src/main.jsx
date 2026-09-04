@@ -183,6 +183,50 @@ function val(t, names, fallback = null) {
   return fallback;
 }
 
+
+function contractSize(asset) {
+  const name = String(asset || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (name.includes("XAU") || name.includes("GOLD")) return 100;
+  if (name.includes("NAS") || name.includes("USTEC") || name.includes("NASDAQ")) return 1;
+  if (name.includes("SP500") || name.includes("US500") || name.includes("SPX")) return 1;
+  return 1;
+}
+
+function parsePartials(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function partialBreakdown(trade) {
+  const partials = parsePartials(val(trade, ["partials","partial_closes","partials_json"]));
+  const entry = Number(trade?.entry || 0);
+  const sl = Number(trade?.sl || 0);
+  const lotSize = Number(trade?.lot_size || 0);
+  const risk = Math.abs(entry - sl);
+  const isLong = String(trade?.direction || "").toLowerCase() === "long";
+  const contract = contractSize(trade?.asset);
+
+  return partials.map((p, index) => {
+    const percent = Number(p?.percent || 0);
+    const price = Number(p?.price || entry);
+    const fraction = Math.max(0, percent / 100);
+    const partialLot = lotSize * fraction;
+    const move = isLong ? price - entry : entry - price;
+    const profit = move * contract * partialLot;
+    const r = risk > 0 ? (move / risk) * fraction : 0;
+    return { index: index + 1, percent, price, profit, r };
+  });
+}
+
 function periodKey(dateValue, period) {
   const d = new Date(dateValue);
   if (period === "day") return d.toLocaleDateString();
@@ -193,23 +237,71 @@ function periodKey(dateValue, period) {
 
 function TradeModal({ trade, onClose }) {
   if (!trade) return null;
+
   const screenshot = val(trade, ["screenshot_url","screenshot","image_url","photo_url"]);
   const notes = val(trade, ["notes","note","trade_notes"]);
-  const partials = val(trade, ["partials","partial_closes","partials_json"]);
-  return <div className="modal-backdrop" onClick={onClose}><div className="modal" onClick={e=>e.stopPropagation()}>
-    <div className="modal-head"><div><div className="eyebrow">TRADE #{trade.id}</div><h2>{trade.asset} · {trade.direction}</h2></div><button className="close" onClick={onClose}>×</button></div>
-    <div className="detail-grid">
-      <div><span>Date</span><b>{new Date(trade.created_at).toLocaleString()}</b></div>
-      <div><span>Result</span><b>{trade.result || "—"}</b></div>
-      <div><span>R</span><b>{Number(trade.r_result||0).toFixed(2)}R</b></div>
-      <div><span>Profit</span><b>{money(Number(trade.profit||0))}</b></div>
-      <div><span>Lot size</span><b>{trade.lot_size ?? "—"}</b></div>
-      <div><span>Feeling</span><b>{trade.feeling || "—"}</b></div>
+  const partials = partialBreakdown(trade);
+  const plannedRR = Number(trade.rr || 0);
+  const actualR = Number(trade.r_result || 0);
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-head">
+          <div>
+            <div className="eyebrow">TRADE #{trade.id}</div>
+            <h2>{trade.asset} · {trade.direction}</h2>
+          </div>
+          <button className="close" onClick={onClose}>×</button>
+        </div>
+
+        <div className="detail-grid">
+          <div><span>Date</span><b>{new Date(trade.created_at).toLocaleString()}</b></div>
+          <div><span>Result</span><b>{trade.result || "—"}</b></div>
+          <div><span>Planned R:R</span><b>1:{plannedRR.toFixed(2)}</b></div>
+          <div><span>Actual R</span><b>{actualR >= 0 ? "+" : ""}{actualR.toFixed(2)}R</b></div>
+          <div><span>Profit</span><b>{money(Number(trade.profit || 0))}</b></div>
+          <div><span>Lot size</span><b>{trade.lot_size ?? "—"}</b></div>
+          <div><span>Feeling</span><b>{trade.feeling || "—"}</b></div>
+        </div>
+
+        {notes && (
+          <div className="detail-block">
+            <span>Notes</span>
+            <p>{String(notes)}</p>
+          </div>
+        )}
+
+        {partials.length > 0 && (
+          <div className="detail-block">
+            <span>Partials</span>
+            <div className="partials-list">
+              {partials.map(p => (
+                <div className="partial-row" key={p.index}>
+                  <div>
+                    <b>{p.percent.toFixed(2).replace(/\.?0+$/, "")}% @ {p.price.toLocaleString()}</b>
+                  </div>
+                  <div className={p.profit >= 0 ? "positive" : "negative"}>
+                    {money(p.profit)}
+                  </div>
+                  <div className="muted small">
+                    {p.r >= 0 ? "+" : ""}{p.r.toFixed(2)}R contribution
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {screenshot && (
+          <div className="detail-block">
+            <span>Screenshot</span>
+            <img className="trade-shot" src={screenshot} alt="Trade screenshot" />
+          </div>
+        )}
+      </div>
     </div>
-    {notes && <div className="detail-block"><span>Notes</span><p>{String(notes)}</p></div>}
-    {partials && <div className="detail-block"><span>Partials</span><pre>{typeof partials === "string" ? partials : JSON.stringify(partials,null,2)}</pre></div>}
-    {screenshot && <div className="detail-block"><span>Screenshot</span><img className="trade-shot" src={screenshot} alt="Trade screenshot" /></div>}
-  </div></div>;
+  );
 }
 
 function Dashboard({ profile }) {
@@ -240,6 +332,7 @@ function Dashboard({ profile }) {
     const losses = trades.filter((t) => Number(t.r_result) < 0).length;
     const totalProfit = trades.reduce((s, t) => s + Number(t.profit || 0), 0);
     const totalR = trades.reduce((s, t) => s + Number(t.r_result || 0), 0);
+    const avgRR = total ? trades.reduce((s, t) => s + Number(t.rr || 0), 0) / total : 0;
     const grossProfit = trades.reduce((s, t) => s + Math.max(Number(t.profit || 0), 0), 0);
     const grossLoss = trades.reduce((s, t) => s + Math.abs(Math.min(Number(t.profit || 0), 0)), 0);
     const pf = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0;
@@ -265,7 +358,7 @@ function Dashboard({ profile }) {
     let peak=0, equity=0, maxDrawdown=0, winStreak=0, lossStreak=0, cw=0, cl=0;
     trades.forEach(t=>{ equity += Number(t.profit||0); peak=Math.max(peak,equity); maxDrawdown=Math.min(maxDrawdown,equity-peak); if(Number(t.r_result)>0){cw++;cl=0}else if(Number(t.r_result)<0){cl++;cw=0}else{cw=0;cl=0} winStreak=Math.max(winStreak,cw); lossStreak=Math.max(lossStreak,cl); });
     const partialTrades = trades.filter(t=>val(t,["partials","partial_closes","partials_json","partial_profit","partial_r"]));
-    return { total,wins,losses,winrate: total ? (wins / total) * 100 : 0,totalProfit,totalR,pf,curve,mostTraded,byAsset,feelings,maxDrawdown,winStreak,lossStreak,partialCount:partialTrades.length };
+    return { total,wins,losses,winrate: total ? (wins / total) * 100 : 0,totalProfit,totalR,avgRR,pf,curve,mostTraded,byAsset,feelings,maxDrawdown,winStreak,lossStreak,partialCount:partialTrades.length };
   }, [trades]);
 
   const assets = ["ALL", ...new Set(trades.map((t) => t.asset))];
@@ -319,6 +412,7 @@ function Dashboard({ profile }) {
         <Stat label="Best Win Streak" value={`${analytics.winStreak} trades`} />
         <Stat label="Worst Loss Streak" value={`${analytics.lossStreak} trades`} />
         <Stat label="Trades With Partials" value={analytics.partialCount} />
+        <Stat label="Average Planned R:R" value={`1:${analytics.avgRR.toFixed(2)}`} />
       </section>
 
       <section className="panel chart-panel">
@@ -387,7 +481,8 @@ function Dashboard({ profile }) {
                 <th>Direction</th>
                 <th>Lot</th>
                 <th>Result</th>
-                <th>R</th>
+                <th>Planned R:R</th>
+                <th>Actual R</th>
                 <th>Profit</th>
                 <th>Feeling</th>
                 <th>Details</th>
@@ -402,6 +497,7 @@ function Dashboard({ profile }) {
                   <td>{t.direction}</td>
                   <td>{t.lot_size}</td>
                   <td><span className={`pill ${Number(t.r_result) > 0 ? "win" : Number(t.r_result) < 0 ? "loss" : "be"}`}>{t.result}</span></td>
+                  <td>1:{Number(t.rr || 0).toFixed(2)}</td>
                   <td>{Number(t.r_result) >= 0 ? "+" : ""}{Number(t.r_result).toFixed(2)}R</td>
                   <td className={Number(t.profit) >= 0 ? "positive" : "negative"}>{money(Number(t.profit || 0))}</td>
                   <td>{t.feeling || "—"}</td>

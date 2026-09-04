@@ -265,3 +265,28 @@ td { color: #cbd4e4; }
 .trade-shot { width:100%; max-height:500px; object-fit:contain; border-radius:8px; margin-top:6px; }
 @media(max-width:900px){.analytics-grid{grid-template-columns:1fr}.secondary-stats{grid-template-columns:repeat(2,1fr)}.detail-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:650px){.mini-row{grid-template-columns:1fr 1fr;}.mini-row span:nth-of-type(2){display:none}.detail-grid{grid-template-columns:1fr}}
+
+
+.partials-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.partial-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  background: #0b1220;
+  border: 1px solid #27334a;
+  border-radius: 12px;
+}
+
+@media (max-width: 650px) {
+  .partial-row {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+}
