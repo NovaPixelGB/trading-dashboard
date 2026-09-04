@@ -1,0 +1,10 @@
+UPLOAD THIS FOLDER'S CONTENTS TO YOUR trading-dashboard GITHUB REPO.
+
+Vercel Environment Variables:
+- Keep VITE_SUPABASE_URL
+- Keep VITE_SUPABASE_ANON_KEY
+- ADD TELEGRAM_BOT_TOKEN (your trading journal bot token)
+
+Then redeploy Vercel.
+
+The new /api/trade-image endpoint securely loads the Telegram screenshot for a trade after Supabase RLS confirms that the logged-in website account can read that trade.

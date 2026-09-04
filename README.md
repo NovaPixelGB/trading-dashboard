@@ -1,17 +1,21 @@
-# Trading Dashboard
+# TradeLog Dashboard
 
-Read-only website for the Telegram trading journal.
+Professional read-only analytics dashboard for the Telegram trading journal.
 
-## Setup
+## Deploy / update on Vercel
 
-1. Run `supabase_setup.sql` once in Supabase SQL Editor.
-2. Add the `/link` command version of your journal bot.
-3. Create a Vercel project from this repository.
-4. Add:
-   - VITE_SUPABASE_URL
-   - VITE_SUPABASE_ANON_KEY
-5. Build command: npm run build
-6. Output directory: dist
+1. Upload the contents of this folder to your `trading-dashboard` GitHub repository, replacing the existing files.
+2. Keep your existing Vercel variables:
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+3. Add one new **server-side** Vercel environment variable:
+   - `TELEGRAM_BOT_TOKEN` = the current token for your trading journal Telegram bot
+4. Redeploy the Vercel project.
 
-The website cannot insert/update/delete trades. Supabase RLS only allows each logged-in
-website user to SELECT trades belonging to their verified Telegram user ID.
+`TELEGRAM_BOT_TOKEN` must be added in Vercel's Environment Variables. Do not put it in source code or in a `VITE_...` variable.
+
+## Trade screenshots
+
+The bot already stores Telegram's `photo_file_id` on each trade. The dashboard uses `/api/trade-image` to retrieve that image server-side. The user's Supabase access token is checked first, and existing RLS limits the trade lookup to the linked account.
+
+No Supabase database change is required for the screenshot feature if your `trades` table already contains `photo_file_id`.
