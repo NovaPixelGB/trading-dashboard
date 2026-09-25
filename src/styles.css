@@ -107,6 +107,10 @@ input:focus, select:focus { border-color: rgba(102,227,189,.75); box-shadow: 0 0
 .topbar h1 { font-size: clamp(28px, 3vw, 38px); margin: 7px 0 6px; }
 .topbar p { color: var(--muted); margin-bottom: 0; font-size: 13px; }
 .topbar-actions { display: flex; gap: 8px; }
+.account-switcher { min-height: 39px; padding: 4px 8px; background: #0d151f; border: 1px solid var(--border-strong); border-radius: 9px; }
+.account-switcher label { white-space: nowrap; }
+.account-switcher select { min-width: 135px; border: 0; background-color: transparent; padding-top: 5px; padding-bottom: 5px; }
+.account-chip { display: inline-flex; align-items: center; padding: 4px 7px; border-radius: 7px; color: #b2c0d0; background: #111c28; border: 1px solid #233347; font-size: 9px; font-weight: 700; }
 .ghost-button { min-height: 39px; display: inline-flex; align-items: center; gap: 8px; padding: 0 12px; background: #0d151f; border: 1px solid var(--border-strong); border-radius: 9px; color: #9ca9b9; font-size: 12px; cursor: pointer; transition: color .15s ease, border-color .15s ease, background .15s ease; }
 .ghost-button:hover { color: #e0e7ef; background: #111c28; border-color: #35475b; }
 .danger-hover:hover { color: #ff9cab; border-color: rgba(255,127,147,.3); background: rgba(255,127,147,.05); }
@@ -229,6 +233,9 @@ td { color: #99a7b7; }
   .dashboard-main { padding: 19px 12px 34px; }
   .topbar { flex-direction: column; }
   .topbar-actions { width: 100%; }
+  .topbar-actions { flex-wrap: wrap; }
+  .account-switcher { flex: 1 1 100%; }
+  .account-switcher select { flex: 1; }
   .ghost-button { flex: 1; justify-content: center; }
   .primary-metrics { grid-template-columns: 1fr 1fr; }
   .metric-card { padding: 14px; }
