@@ -200,11 +200,20 @@ function TradeModal({ trade, onClose }) {
 }
 
 function Dashboard({ profile }) {
-  const [trades, setTrades] = useState([]); const [loading, setLoading] = useState(true); const [filter, setFilter] = useState("ALL"); const [accountFilter, setAccountFilter] = useState("ALL"); const [period, setPeriod] = useState("week"); const [selectedTrade, setSelectedTrade] = useState(null); const [tab, setTab] = useState("overview");
+  const [trades, setTrades] = useState([]); const [accounts, setAccounts] = useState([]); const [loading, setLoading] = useState(true); const [filter, setFilter] = useState("ALL"); const [accountFilter, setAccountFilter] = useState("ALL"); const [period, setPeriod] = useState("week"); const [selectedTrade, setSelectedTrade] = useState(null); const [tab, setTab] = useState("overview");
   useEffect(() => { loadTrades(); }, []);
-  async function loadTrades() { setLoading(true); const { data, error } = await supabase.from("trades").select("*").order("created_at", { ascending: true }); if (!error) setTrades(data || []); setLoading(false); }
+  async function loadTrades() {
+    setLoading(true);
+    const [tradeResult, accountResult] = await Promise.all([
+      supabase.from("trades").select("*").order("created_at", { ascending: true }),
+      supabase.from("trading_accounts").select("id,name").order("created_at", { ascending: true }),
+    ]);
+    if (!tradeResult.error) setTrades(tradeResult.data || []);
+    if (!accountResult.error) setAccounts(accountResult.data || []);
+    setLoading(false);
+  }
 
-  const accountNames = useMemo(() => ["ALL", ...new Set(trades.map((t) => t.account_name || "Main"))], [trades]);
+  const accountNames = useMemo(() => ["ALL", ...new Set([...accounts.map((a) => a.name), ...trades.map((t) => t.account_name || "Main")])], [accounts, trades]);
   const accountTrades = useMemo(() => accountFilter === "ALL" ? trades : trades.filter((t) => (t.account_name || "Main") === accountFilter), [trades, accountFilter]);
 
   const analytics = useMemo(() => {
