@@ -1,0 +1,24 @@
+@media(max-width:1180px){
+  .primary-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .metric-card:nth-child(2){border-right:0}.metric-card:nth-child(-n+2){border-bottom:1px solid var(--border)}.metric-card:nth-child(3){padding-left:0}
+  .main-grid,.two-column-grid,.modal-layout{grid-template-columns:1fr}
+  .snapshot-stack{grid-template-columns:repeat(3,1fr);border-bottom:1px solid var(--border-strong)}
+  .snapshot-stack .metric-card{border-bottom:0;border-right:1px solid var(--border);padding:16px 18px 16px 0}
+  .snapshot-stack .metric-card+.metric-card{padding-left:18px}.snapshot-stack .metric-card:last-child{border-right:0}
+}
+@media(max-width:920px){
+  .auth-shell{grid-template-columns:1fr}.auth-brand-panel{min-height:340px;padding:34px 28px}.auth-copy{margin-top:50px;padding:0 0 40px}.auth-copy h1{font-size:44px}.auth-form-panel{padding:48px 28px}
+  .dashboard-shell{grid-template-columns:1fr}.sidebar{position:static;width:100%;height:auto;display:grid;grid-template-columns:auto 1fr;align-items:center;padding:12px 18px;border-right:0;border-bottom:1px solid #1e293b}
+  .sidebar-brand{padding:0}.side-nav{display:flex;justify-content:flex-end;margin:0}.side-nav button{min-height:38px}.side-nav button span{display:none}.sidebar-account{display:none}
+}
+@media(max-width:720px){
+  .dashboard-main{padding:24px 16px}.topbar{grid-template-columns:1fr;gap:18px}.topbar-actions{justify-content:flex-start}.account-switcher{width:100%}.account-switcher select{flex:1}.live-pill{border-left:0;padding-left:0}
+  .primary-metrics{grid-template-columns:1fr}.metric-card,.metric-card+.metric-card,.metric-card:nth-child(3){padding:15px 0;border-right:0;border-bottom:1px solid var(--border)}.metric-card:last-child{border-bottom:0}
+  .latest-trade-grid,.psych-summary,.latest-stats,.trade-hero-strip,.detail-grid{grid-template-columns:1fr}
+  .latest-stats>div:nth-child(odd),.detail-grid>div:nth-child(odd){border-right:0}.latest-stats>div:nth-child(even),.detail-grid>div:nth-child(even){padding-left:0}
+  .psych-card,.psych-card+.psych-card{padding:15px 0;border-right:0;border-bottom:1px solid var(--border)}
+  .snapshot-stack{grid-template-columns:1fr}.snapshot-stack .metric-card,.snapshot-stack .metric-card+.metric-card{padding:15px 0;border-right:0;border-bottom:1px solid var(--border)}
+  .panel-heading{align-items:flex-start;flex-direction:column}.filter-wrap{width:100%}.filter-wrap select{flex:1}
+  .psychology-full-layout{grid-template-columns:1.2fr repeat(5,minmax(72px,.8fr))}
+  .modal-backdrop{padding:0}.modal{min-height:100vh;padding:20px 16px;border:0}.dashboard-footer{flex-direction:column}
+}
