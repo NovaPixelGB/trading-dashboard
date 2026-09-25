@@ -254,21 +254,171 @@ function Dashboard({ profile, theme, onToggleTheme }) {
   if(loading)return <main className="center-screen app-bg"><div className="loader-card"><span className="spinner"/>Loading trading data…</div></main>;
   if(!trades.length)return <main className="center-screen app-bg"><section className="empty-card"><div className="brand-logo large"><Icon name="chart" size={24}/></div><span className="eyebrow">NO JOURNAL DATA</span><h2>No trading data found</h2><p>No trades were found for @{profile.telegram_username}.</p><button className="primary compact" onClick={loadTrades}><Icon name="refresh" size={17}/>Refresh data</button></section></main>;
 
-  return <div className="dashboard-shell"><aside className="sidebar"><div className="brand-lockup sidebar-brand"><div className="brand-logo"><Icon name="trend" size={20}/></div><span>TradeLog</span></div><nav className="side-nav">{[["overview","grid","Overview"],["history","history","Trade History"],["performance","chart","Performance"],["psychology","brain","Psychology"]].map(([id,icon,label])=><button key={id} className={tab===id?"active":""} onClick={()=>setTab(id)}><Icon name={icon}/><span>{label}</span></button>)}</nav><div className="sidebar-account"><span className="eyebrow">TELEGRAM</span><strong>@{profile.telegram_username}</strong><small>Securely linked</small></div></aside>
-  <main className="dashboard-main"><header className="topbar"><div><span className="eyebrow">TRADING ANALYTICS</span><h1>{tabTitles[tab]}</h1><p>@{profile.telegram_username} · {accountFilter==="ALL"?"All accounts":accountFilter}</p></div><div className="topbar-actions"><div className="filter-wrap account-switcher"><label>Account</label><select value={accountFilter} onChange={e=>{setAccountFilter(e.target.value);setFilter("ALL");}}>{accountNames.map(a=><option key={a} value={a}>{a==="ALL"?"All Accounts":a}</option>)}</select></div><span className="live-pill">Live data · Read only</span><ThemeToggle theme={theme} onToggle={onToggleTheme} compact/><button className="ghost-button" onClick={loadTrades}><Icon name="refresh" size={16}/>Refresh</button><button className="ghost-button" onClick={()=>supabase.auth.signOut()}><Icon name="logout" size={16}/>Sign out</button></div></header>
+  return (
+    <div className="terminal-shell">
+      <header className="app-header">
+        <div className="app-brand">
+          <div className="brand-mark"><TrendingUp size={17} strokeWidth={1.8}/></div>
+          <div>
+            <strong>TradeLog</strong>
+            <span>Journal analytics</span>
+          </div>
+        </div>
 
-  {tab==="overview"&&<><section className="primary-metrics"><MetricCard label="Net P&L" value={money(analytics.totalProfit)} note={`${analytics.totalR>=0?"+":""}${analytics.totalR.toFixed(2)}R overall`} icon="trend" tone={analytics.totalProfit>=0?"positive":"negative"}/><MetricCard label="Win rate" value={`${analytics.winrate.toFixed(1)}%`} note={`${analytics.wins}W · ${analytics.losses}L · ${analytics.breakevens}BE`} icon="trophy" tone={analytics.winrate>=50?"positive":"neutral"}/><MetricCard label="Profit factor" value={analytics.pf===Infinity?"∞":analytics.pf.toFixed(2)} note="Gross profit ÷ gross loss" icon="layers" tone={analytics.pf>=1?"positive":"negative"}/><MetricCard label="Avg planned R:R" value={`1:${analytics.avgRR.toFixed(2)}`} note={`${analytics.total} journalled trades`} icon="target" tone="positive"/></section>
-  <section className="content-grid main-grid"><article className="panel hero-panel"><PanelTitle title="Equity curve" subtitle="Cumulative realised USD profit"/><div className="chart-wrap"><ResponsiveContainer width="100%" height={320}><AreaChart data={analytics.curve} margin={{top:8,right:8,left:-14,bottom:0}}><CartesianGrid stroke={chartColors.grid} vertical={false} strokeDasharray="4 4"/><XAxis dataKey="trade" stroke={chartColors.axis} tickLine={false} axisLine={false} fontSize={11}/><YAxis stroke={chartColors.axis} tickLine={false} axisLine={false} fontSize={11} tickFormatter={v=>`$${v}`}/><Tooltip contentStyle={{background:chartColors.tooltipBg,border:`1px solid ${chartColors.tooltipBorder}`,borderRadius:0,color:chartColors.tooltipText}} formatter={v=>[`$${Number(v).toFixed(2)}`,"Equity"]}/><Area type="monotone" dataKey="profit" stroke="#2563eb" fill="none" strokeWidth={2}/></AreaChart></ResponsiveContainer></div></article><aside className="snapshot-stack"><MetricCard label="Max drawdown" value={money(analytics.maxDrawdown)} note="Peak-to-trough realised equity" icon="arrowDown" tone="negative"/><MetricCard label="Best win streak" value={`${analytics.winStreak} trades`} note={`Worst losing streak: ${analytics.lossStreak}`} icon="trophy" tone="positive"/><MetricCard label="Most traded" value={analytics.mostTraded} note={`${analytics.partialCount} trades used partials`} icon="layers"/></aside></section>
-  {latest&&<section className="panel latest-trade-panel"><PanelTitle title="Latest trade" subtitle="Screenshot saved from your Telegram journal" action={<button className="row-action" onClick={()=>setSelectedTrade(latest)}>Open trade</button>}/><div className="latest-trade-grid"><div className="latest-image"><TradeImage trade={latest} compact/></div><div className="latest-stats"><div><span>Asset</span><b>{latest.asset}</b></div><div><span>Direction</span><b>{latest.direction}</b></div><div><span>Actual R</span><b className={Number(latest.r_result)>=0?"positive":"negative"}>{Number(latest.r_result)>=0?"+":""}{Number(latest.r_result||0).toFixed(2)}R</b></div><div><span>Profit</span><b className={Number(latest.profit)>=0?"positive":"negative"}>{money(latest.profit)}</b></div></div></div></section>}</>}
+        <nav className="workspace-nav" aria-label="Dashboard sections">
+          {[["overview","Overview"],["history","Trades"],["performance","Performance"],["psychology","Psychology"]].map(([id,label])=>(
+            <button key={id} className={tab===id?"active":""} onClick={()=>setTab(id)}>{label}</button>
+          ))}
+        </nav>
 
-  {tab==="history"&&<section className="panel"><PanelTitle title="Trade history" subtitle="Click any trade to view full details and its Telegram screenshot" action={<div className="filter-wrap"><label>Asset</label><select value={filter} onChange={e=>setFilter(e.target.value)}>{assets.map(a=><option key={a}>{a}</option>)}</select></div>}/><div className="table-wrap"><table><thead><tr><th>Trade</th><th>Date</th><th>Account</th><th>Asset</th><th>Side</th><th>Result</th><th>Planned R:R</th><th>Actual R</th><th>Profit</th><th>Photo</th></tr></thead><tbody>{visible.map(t=>{const r=Number(t.r_result||0),p=Number(t.profit||0);return <tr key={t.id} className="click-row" onClick={()=>setSelectedTrade(t)}><td><span className="trade-id">#{t.id}</span></td><td>{new Date(t.created_at).toLocaleDateString()}</td><td><span className="account-chip">{t.account_name || "Main"}</span></td><td><strong className="asset-name">{t.asset}</strong></td><td><span className={`direction-chip ${String(t.direction).toLowerCase()}`}>{t.direction}</span></td><td><span className={`result-pill ${r>0?"win":r<0?"loss":"be"}`}>{t.result}</span></td><td>1:{Number(t.rr||0).toFixed(2)}</td><td className={r>=0?"positive":"negative"}>{r>=0?"+":""}{r.toFixed(2)}R</td><td className={p>=0?"positive":"negative"}>{money(p)}</td><td>{t.photo_file_id?<span className="photo-chip"><Icon name="camera" size={13}/>View</span>:"—"}</td></tr>})}</tbody></table></div></section>}
+        <div className="header-tools">
+          <label className="account-field">
+            <span>Account</span>
+            <select value={accountFilter} onChange={e=>{setAccountFilter(e.target.value);setFilter("ALL");}}>
+              {accountNames.map(a=><option key={a} value={a}>{a==="ALL"?"All accounts":a}</option>)}
+            </select>
+          </label>
+          <button className="icon-control" onClick={loadTrades} title="Refresh"><RefreshCw size={15}/></button>
+          <ThemeToggle theme={theme} onToggle={onToggleTheme} compact/>
+          <button className="icon-control" onClick={()=>supabase.auth.signOut()} title="Sign out"><LogOut size={15}/></button>
+        </div>
+      </header>
 
-  {tab==="performance"&&<><section className="primary-metrics"><MetricCard label="Best asset" value={analytics.bestAsset} note={analytics.byAsset[0]?money(analytics.byAsset[0].profit):"No data"} icon="trophy" tone="positive"/><MetricCard label="Average win" value={`${analytics.avgWin>=0?"+":""}${analytics.avgWin.toFixed(2)}R`} note={`${analytics.wins} winning trades`} icon="arrowUp" tone="positive"/><MetricCard label="Average loss" value={`${analytics.avgLoss.toFixed(2)}R`} note={`${analytics.losses} losing trades`} icon="arrowDown" tone="negative"/><MetricCard label="Expectancy" value={`${analytics.expectancy>=0?"+":""}${analytics.expectancy.toFixed(2)}R`} note="Average result per trade" icon="target" tone={analytics.expectancy>=0?"positive":"negative"}/></section>
-  <section className="content-grid two-column-grid"><article className="panel"><PanelTitle title="Asset performance" subtitle="Realised P&L contribution by market"/><div className="asset-bars">{analytics.byAsset.map(x=>{const max=Math.max(...analytics.byAsset.map(a=>Math.abs(a.profit)),1);return <div className="asset-bar" key={x.asset}><div><strong>{x.asset}</strong><span>{x.trades} trades · {x.winrate.toFixed(0)}% WR</span></div><div className="bar-track"><span style={{width:`${Math.max(6,Math.abs(x.profit)/max*100)}%`}} className={x.profit>=0?"bar-positive":"bar-negative"}/></div><b className={x.profit>=0?"positive":"negative"}>{money(x.profit)}</b></div>})}</div></article><article className="panel"><PanelTitle title="Period performance" subtitle="Compare realised results over time" action={<div className="segmented-control">{["day","week","month"].map(p=><button key={p} className={period===p?"active":""} onClick={()=>setPeriod(p)}>{p==="day"?"Daily":p==="week"?"Weekly":"Monthly"}</button>)}</div>}/><div className="chart-wrap compact-chart"><ResponsiveContainer width="100%" height={270}><BarChart data={periodData}><CartesianGrid stroke={chartColors.grid} vertical={false} strokeDasharray="4 4"/><XAxis dataKey="name" stroke={chartColors.axis} tickLine={false} axisLine={false} fontSize={10}/><YAxis stroke={chartColors.axis} tickLine={false} axisLine={false} fontSize={10}/><Tooltip contentStyle={{background:chartColors.tooltipBg,border:`1px solid ${chartColors.tooltipBorder}`,borderRadius:0,color:chartColors.tooltipText}} formatter={v=>[`$${Number(v).toFixed(2)}`,"Profit"]}/><Bar dataKey="profit" fill="#2563eb" radius={[0,0,0,0]} maxBarSize={34}/></BarChart></ResponsiveContainer></div></article></section></>}
+      <main className="workspace">
+        <section className="page-heading">
+          <div>
+            <span className="section-kicker">{tabTitles[tab]}</span>
+            <h1>{accountFilter==="ALL"?"All accounts":accountFilter}</h1>
+          </div>
+          <div className="scope-meta">
+            <span>@{profile.telegram_username}</span>
+            <span>{analytics.total} trades</span>
+            <span>Read only</span>
+          </div>
+        </section>
 
-  {tab==="psychology"&&<><section className="psych-summary">{analytics.feelings.slice(0,3).map((x,i)=><article className="psych-card" key={x.name}><span className="eyebrow">{x.name}</span><strong className={x.r>=0?"positive":"negative"}>{x.winrate.toFixed(0)}% WR</strong><p>{x.r>=0?"+":""}{x.r.toFixed(2)}R · {x.trades} trades</p></article>)}</section><section className="panel psychology-panel"><PanelTitle title="Mindset performance" subtitle="How your recorded psychology correlates with results"/><div className="data-list"><div className="data-list-head psychology-full-layout"><span>Feeling</span><span>Trades</span><span>Win rate</span><span>Avg R</span><span>Total R</span><span>P&L</span></div>{analytics.feelings.map(x=><div className="data-row psychology-full-layout" key={x.name}><strong>{x.name}</strong><span>{x.trades}</span><span>{x.winrate.toFixed(0)}%</span><span className={x.avgR>=0?"positive":"negative"}>{x.avgR>=0?"+":""}{x.avgR.toFixed(2)}R</span><span className={x.r>=0?"positive":"negative"}>{x.r>=0?"+":""}{x.r.toFixed(2)}R</span><span className={x.profit>=0?"positive":"negative"}>{money(x.profit)}</span></div>)}</div>{analytics.feelings.length>0&&<div className="insight-box"><Icon name="brain" size={18}/><div><strong>Journal insight</strong><p>Your best recorded mindset is <b>{[...analytics.feelings].sort((a,b)=>b.r-a.r)[0]?.name}</b>, based on total realised R.</p></div></div>}</section></>}
+        {tab==="overview"&&<>
+          <section className="kpi-rail">
+            <div><span>Net P&L</span><strong className={analytics.totalProfit>=0?"positive":"negative"}>{money(analytics.totalProfit)}</strong><small>{analytics.totalR>=0?"+":""}{analytics.totalR.toFixed(2)}R</small></div>
+            <div><span>Win rate</span><strong>{analytics.winrate.toFixed(1)}%</strong><small>{analytics.wins}W / {analytics.losses}L / {analytics.breakevens}BE</small></div>
+            <div><span>Profit factor</span><strong>{analytics.pf===Infinity?"∞":analytics.pf.toFixed(2)}</strong><small>Gross profit / loss</small></div>
+            <div><span>Avg planned R:R</span><strong>1:{analytics.avgRR.toFixed(2)}</strong><small>{analytics.total} journalled</small></div>
+            <div><span>Max drawdown</span><strong>{money(analytics.maxDrawdown)}</strong><small>Realised equity</small></div>
+          </section>
 
-  <footer className="dashboard-footer"><span>TradeLog</span><span>Read-only analytics · Secure Telegram-linked data</span></footer><TradeModal trade={selectedTrade} onClose={()=>setSelectedTrade(null)}/></main></div>;
+          <section className="overview-grid">
+            <div className="workspace-section equity-section">
+              <div className="section-head">
+                <div><h2>Equity</h2><p>Cumulative realised USD profit</p></div>
+              </div>
+              <div className="chart-wrap terminal-chart">
+                <ResponsiveContainer width="100%" height={360}>
+                  <AreaChart data={analytics.curve} margin={{top:8,right:4,left:-12,bottom:0}}>
+                    <CartesianGrid stroke={chartColors.grid} vertical={false}/>
+                    <XAxis dataKey="trade" stroke={chartColors.axis} tickLine={false} axisLine={false} fontSize={10}/>
+                    <YAxis stroke={chartColors.axis} tickLine={false} axisLine={false} fontSize={10} tickFormatter={v=>`$${v}`}/>
+                    <Tooltip contentStyle={{background:chartColors.tooltipBg,border:`1px solid ${chartColors.tooltipBorder}`,borderRadius:0,color:chartColors.tooltipText}} formatter={v=>[`$${Number(v).toFixed(2)}`,"Equity"]}/>
+                    <Area type="monotone" dataKey="profit" stroke="#2563eb" fill="none" strokeWidth={1.8}/>
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <aside className="overview-side">
+              <div className="workspace-section">
+                <div className="section-head"><div><h2>Current readout</h2><p>Selected account</p></div></div>
+                <dl className="readout-list">
+                  <div><dt>Most traded</dt><dd>{analytics.mostTraded}</dd></div>
+                  <div><dt>Best asset</dt><dd>{analytics.bestAsset}</dd></div>
+                  <div><dt>Win streak</dt><dd>{analytics.winStreak}</dd></div>
+                  <div><dt>Loss streak</dt><dd>{analytics.lossStreak}</dd></div>
+                  <div><dt>Trades with partials</dt><dd>{analytics.partialCount}</dd></div>
+                </dl>
+              </div>
+            </aside>
+          </section>
+
+          {latest&&<section className="workspace-section latest-section">
+            <div className="section-head">
+              <div><h2>Latest trade</h2><p>{latest.asset} · {latest.account_name || "Main"} · {new Date(latest.created_at).toLocaleString()}</p></div>
+              <button className="text-action" onClick={()=>setSelectedTrade(latest)}>Open trade</button>
+            </div>
+            <div className="latest-terminal">
+              <div className="latest-shot"><TradeImage trade={latest} compact/></div>
+              <dl className="trade-readout">
+                <div><dt>Direction</dt><dd>{latest.direction}</dd></div>
+                <div><dt>Result</dt><dd>{latest.result}</dd></div>
+                <div><dt>Actual R</dt><dd className={Number(latest.r_result)>=0?"positive":"negative"}>{Number(latest.r_result)>=0?"+":""}{Number(latest.r_result||0).toFixed(2)}R</dd></div>
+                <div><dt>Profit</dt><dd className={Number(latest.profit)>=0?"positive":"negative"}>{money(latest.profit)}</dd></div>
+                <div><dt>Planned R:R</dt><dd>1:{Number(latest.rr||0).toFixed(2)}</dd></div>
+                <div><dt>Lot size</dt><dd>{latest.lot_size ?? "—"}</dd></div>
+              </dl>
+            </div>
+          </section>}
+        </>}
+
+        {tab==="history"&&<section className="workspace-section">
+          <div className="section-head">
+            <div><h2>Trade ledger</h2><p>Every journal entry in the selected account scope</p></div>
+            <label className="inline-filter"><span>Asset</span><select value={filter} onChange={e=>setFilter(e.target.value)}>{assets.map(a=><option key={a}>{a}</option>)}</select></label>
+          </div>
+          <div className="table-wrap ledger-wrap">
+            <table className="ledger-table">
+              <thead><tr><th>ID</th><th>Date</th><th>Account</th><th>Asset</th><th>Side</th><th>Result</th><th>Plan</th><th>Actual R</th><th>P&L</th><th>Image</th></tr></thead>
+              <tbody>{visible.map(t=>{const r=Number(t.r_result||0),p=Number(t.profit||0);return <tr key={t.id} onClick={()=>setSelectedTrade(t)}>
+                <td className="mono">#{t.id}</td><td>{new Date(t.created_at).toLocaleDateString()}</td><td>{t.account_name || "Main"}</td><td><strong>{t.asset}</strong></td><td>{t.direction}</td><td>{t.result}</td><td>1:{Number(t.rr||0).toFixed(2)}</td><td className={r>=0?"positive":"negative"}>{r>=0?"+":""}{r.toFixed(2)}R</td><td className={p>=0?"positive":"negative"}>{money(p)}</td><td>{t.photo_file_id?"View":"—"}</td>
+              </tr>})}</tbody>
+            </table>
+          </div>
+        </section>}
+
+        {tab==="performance"&&<>
+          <section className="kpi-rail compact-rail">
+            <div><span>Best asset</span><strong>{analytics.bestAsset}</strong><small>{analytics.byAsset[0]?money(analytics.byAsset[0].profit):"No data"}</small></div>
+            <div><span>Average win</span><strong>{analytics.avgWin>=0?"+":""}{analytics.avgWin.toFixed(2)}R</strong><small>{analytics.wins} winners</small></div>
+            <div><span>Average loss</span><strong>{analytics.avgLoss.toFixed(2)}R</strong><small>{analytics.losses} losers</small></div>
+            <div><span>Expectancy</span><strong>{analytics.expectancy>=0?"+":""}{analytics.expectancy.toFixed(2)}R</strong><small>Per trade</small></div>
+          </section>
+          <section className="performance-grid">
+            <div className="workspace-section">
+              <div className="section-head"><div><h2>By market</h2><p>Realised account performance</p></div></div>
+              <div className="market-table">
+                <div className="market-row market-head"><span>Market</span><span>Trades</span><span>Win rate</span><span>Total R</span><span>P&L</span></div>
+                {analytics.byAsset.map(x=><div className="market-row" key={x.asset}><strong>{x.asset}</strong><span>{x.trades}</span><span>{x.winrate.toFixed(0)}%</span><span className={x.r>=0?"positive":"negative"}>{x.r>=0?"+":""}{x.r.toFixed(2)}R</span><span className={x.profit>=0?"positive":"negative"}>{money(x.profit)}</span></div>)}
+              </div>
+            </div>
+            <div className="workspace-section">
+              <div className="section-head">
+                <div><h2>Period P&L</h2><p>Realised profit over time</p></div>
+                <div className="period-tabs">{["day","week","month"].map(p=><button key={p} className={period===p?"active":""} onClick={()=>setPeriod(p)}>{p==="day"?"Day":p==="week"?"Week":"Month"}</button>)}</div>
+              </div>
+              <div className="chart-wrap terminal-chart">
+                <ResponsiveContainer width="100%" height={320}>
+                  <BarChart data={periodData}>
+                    <CartesianGrid stroke={chartColors.grid} vertical={false}/>
+                    <XAxis dataKey="name" stroke={chartColors.axis} tickLine={false} axisLine={false} fontSize={10}/>
+                    <YAxis stroke={chartColors.axis} tickLine={false} axisLine={false} fontSize={10}/>
+                    <Tooltip contentStyle={{background:chartColors.tooltipBg,border:`1px solid ${chartColors.tooltipBorder}`,borderRadius:0,color:chartColors.tooltipText}} formatter={v=>[`$${Number(v).toFixed(2)}`,"Profit"]}/>
+                    <Bar dataKey="profit" fill="#2563eb" radius={[0,0,0,0]} maxBarSize={28}/>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </section>
+        </>}
+
+        {tab==="psychology"&&<section className="workspace-section">
+          <div className="section-head"><div><h2>Mindset ledger</h2><p>Results grouped by recorded state</p></div></div>
+          <div className="market-table psychology-ledger">
+            <div className="market-row psych-row market-head"><span>Feeling</span><span>Trades</span><span>Win rate</span><span>Avg R</span><span>Total R</span><span>P&L</span></div>
+            {analytics.feelings.map(x=><div className="market-row psych-row" key={x.name}><strong>{x.name}</strong><span>{x.trades}</span><span>{x.winrate.toFixed(0)}%</span><span className={x.avgR>=0?"positive":"negative"}>{x.avgR>=0?"+":""}{x.avgR.toFixed(2)}R</span><span className={x.r>=0?"positive":"negative"}>{x.r>=0?"+":""}{x.r.toFixed(2)}R</span><span className={x.profit>=0?"positive":"negative"}>{money(x.profit)}</span></div>)}
+          </div>
+        </section>}
+
+        <TradeModal trade={selectedTrade} onClose={()=>setSelectedTrade(null)}/>
+      </main>
+    </div>
+  );
 }
 
 function App() {
