@@ -14,6 +14,7 @@ import {
 import { supabase } from "./supabase";
 import { LayoutDashboard, ChartNoAxesCombined, History, Target, TrendingUp, UserRound, LogOut, ArrowUp, ArrowDown, Trophy, Layers3, X, RefreshCw, Camera, Brain, ShieldCheck, Moon, Sun } from "lucide-react";
 import "./styles.css";
+import "./terminal.css";
 
 function Icon({ name, size = 18 }) {
   const icons = {
