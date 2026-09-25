@@ -15,6 +15,7 @@ import { supabase } from "./supabase";
 import { LayoutDashboard, ChartNoAxesCombined, History, Target, TrendingUp, UserRound, LogOut, ArrowUp, ArrowDown, Trophy, Layers3, X, RefreshCw, Camera, Brain, ShieldCheck, Moon, Sun } from "lucide-react";
 import "./styles.css";
 import "./terminal.css";
+import "./enhancements.css";
 
 function Icon({ name, size = 18 }) {
   const icons = {
@@ -207,6 +208,19 @@ function PanelTitle({ title, subtitle, action }) {
   return <div className="panel-heading"><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div>{action}</div>;
 }
 
+function SortHead({ label, field, sort, onSort }) {
+  const active = sort.key === field;
+  return <button className={active ? "sort-head active" : "sort-head"} onClick={() => onSort(field)}>{label}<span>{active ? (sort.dir === "asc" ? "↑" : "↓") : ""}</span></button>;
+}
+
+function EquityTooltip({ active, payload, metric }) {
+  if (!active || !payload?.length) return null;
+  const point = payload[0]?.payload;
+  if (!point) return null;
+  const value = metric === "profit" ? money(point.profit) : `${point.r >= 0 ? "+" : ""}${Number(point.r).toFixed(2)}R`;
+  return <div className="equity-tooltip"><strong>Trade #{point.tradeId} · {point.asset}</strong><span>{new Date(point.date).toLocaleDateString()}</span><b>{value}</b><small>Click to open trade</small></div>;
+}
+
 function TradeModal({ trade, onClose }) {
   if (!trade) return null;
   const notes = val(trade, ["notes", "note", "trade_notes"]); const partials = partialBreakdown(trade); const plannedRR = Number(trade.rr || 0); const actualR = Number(trade.r_result || 0); const profit = Number(trade.profit || 0);
@@ -218,7 +232,22 @@ function TradeModal({ trade, onClose }) {
 }
 
 function Dashboard({ profile, theme, onToggleTheme }) {
-  const [trades, setTrades] = useState([]); const [accounts, setAccounts] = useState([]); const [loading, setLoading] = useState(true); const [filter, setFilter] = useState("ALL"); const [accountFilter, setAccountFilter] = useState("ALL"); const [period, setPeriod] = useState("week"); const [selectedTrade, setSelectedTrade] = useState(null); const [tab, setTab] = useState("overview");
+  const [trades, setTrades] = useState([]);
+  const [accounts, setAccounts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState("ALL");
+  const [accountFilter, setAccountFilter] = useState("ALL");
+  const [dateRange, setDateRange] = useState("ALL");
+  const [directionFilter, setDirectionFilter] = useState("ALL");
+  const [resultFilter, setResultFilter] = useState("ALL");
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState({ key: "created_at", dir: "desc" });
+  const [page, setPage] = useState(1);
+  const [chartMetric, setChartMetric] = useState("profit");
+  const [period, setPeriod] = useState("week");
+  const [selectedTrade, setSelectedTrade] = useState(null);
+  const [tab, setTab] = useState("overview");
+  const pageSize = 25;
   useEffect(() => { loadTrades(); }, []);
   async function loadTrades() {
     setLoading(true);
@@ -232,7 +261,15 @@ function Dashboard({ profile, theme, onToggleTheme }) {
   }
 
   const accountNames = useMemo(() => ["ALL", ...new Set([...accounts.map((a) => a.name), ...trades.map((t) => t.account_name || "Main")])], [accounts, trades]);
-  const accountTrades = useMemo(() => accountFilter === "ALL" ? trades : trades.filter((t) => (t.account_name || "Main") === accountFilter), [trades, accountFilter]);
+  const accountScopedTrades = useMemo(() => accountFilter === "ALL" ? trades : trades.filter((t) => (t.account_name || "Main") === accountFilter), [trades, accountFilter]);
+  const accountTrades = useMemo(() => {
+    if (dateRange === "ALL") return accountScopedTrades;
+    const days = Number(dateRange);
+    const cutoff = new Date();
+    cutoff.setHours(0, 0, 0, 0);
+    cutoff.setDate(cutoff.getDate() - Math.max(days - 1, 0));
+    return accountScopedTrades.filter((t) => new Date(t.created_at) >= cutoff);
+  }, [accountScopedTrades, dateRange]);
   const chartColors = theme === "dark" ? { grid: "#263244", axis: "#8b9aaf", tooltipBg: "#111827", tooltipBorder: "#334155", tooltipText: "#e5e7eb" } : { grid: "#e2e8f0", axis: "#64748b", tooltipBg: "#ffffff", tooltipBorder: "#cbd5e1", tooltipText: "#0f172a" };
 
   const analytics = useMemo(() => {
@@ -240,7 +277,23 @@ function Dashboard({ profile, theme, onToggleTheme }) {
     const totalProfit = accountTrades.reduce((s,t)=>s+Number(t.profit||0),0); const totalR = accountTrades.reduce((s,t)=>s+Number(t.r_result||0),0); const avgRR = total ? accountTrades.reduce((s,t)=>s+Number(t.rr||0),0)/total : 0;
     const grossProfit = accountTrades.reduce((s,t)=>s+Math.max(Number(t.profit||0),0),0); const grossLoss = accountTrades.reduce((s,t)=>s+Math.abs(Math.min(Number(t.profit||0),0)),0); const pf = grossLoss>0?grossProfit/grossLoss:grossProfit>0?Infinity:0;
     const avgWin = wins ? accountTrades.filter(t=>Number(t.r_result)>0).reduce((s,t)=>s+Number(t.r_result||0),0)/wins : 0; const avgLoss = losses ? accountTrades.filter(t=>Number(t.r_result)<0).reduce((s,t)=>s+Number(t.r_result||0),0)/losses : 0; const expectancy = total ? totalR/total : 0;
-    let running=0; const curve=accountTrades.map((t,i)=>{running+=Number(t.profit||0);return{trade:i+1,profit:Number(running.toFixed(2))}});
+    let runningProfit=0,runningR=0,peakProfit=0,peakR=0;
+    const curve=accountTrades.map((t,i)=>{
+      runningProfit+=Number(t.profit||0);
+      runningR+=Number(t.r_result||0);
+      peakProfit=Math.max(peakProfit,runningProfit);
+      peakR=Math.max(peakR,runningR);
+      return {
+        trade:i+1,
+        tradeId:t.id,
+        asset:t.asset,
+        date:t.created_at,
+        profit:Number(runningProfit.toFixed(2)),
+        r:Number(runningR.toFixed(2)),
+        drawdownProfit:Number((runningProfit-peakProfit).toFixed(2)),
+        drawdownR:Number((runningR-peakR).toFixed(2)),
+      };
+    });
     const byAsset=Object.values(accountTrades.reduce((a,t)=>{const k=t.asset||"Unknown";a[k]||={asset:k,trades:0,wins:0,profit:0,r:0};a[k].trades++;a[k].wins+=Number(t.r_result)>0?1:0;a[k].profit+=Number(t.profit||0);a[k].r+=Number(t.r_result||0);return a;},{})).map(x=>({...x,winrate:x.trades?x.wins/x.trades*100:0})).sort((a,b)=>b.profit-a.profit);
     const feelings=Object.values(accountTrades.reduce((a,t)=>{const k=t.feeling||"Not recorded";a[k]||={name:k,trades:0,wins:0,profit:0,r:0};a[k].trades++;a[k].wins+=Number(t.r_result)>0?1:0;a[k].profit+=Number(t.profit||0);a[k].r+=Number(t.r_result||0);return a;},{})).map(x=>({...x,winrate:x.trades?x.wins/x.trades*100:0,avgR:x.trades?x.r/x.trades:0})).sort((a,b)=>b.trades-a.trades);
     let peak=0,equity=0,maxDrawdown=0,winStreak=0,lossStreak=0,cw=0,cl=0; accountTrades.forEach(t=>{equity+=Number(t.profit||0);peak=Math.max(peak,equity);maxDrawdown=Math.min(maxDrawdown,equity-peak);if(Number(t.r_result)>0){cw++;cl=0}else if(Number(t.r_result)<0){cl++;cw=0}else{cw=0;cl=0}winStreak=Math.max(winStreak,cw);lossStreak=Math.max(lossStreak,cl)});
@@ -248,8 +301,45 @@ function Dashboard({ profile, theme, onToggleTheme }) {
     return {total,wins,losses,breakevens,totalProfit,totalR,avgRR,pf,avgWin,avgLoss,expectancy,curve,byAsset,feelings,maxDrawdown,winStreak,lossStreak,partialCount,mostTraded,bestAsset,winrate:total?wins/total*100:0};
   }, [accountTrades]);
 
-  const assets=["ALL",...new Set(accountTrades.map(t=>t.asset))]; const visible=(filter==="ALL"?[...accountTrades]:accountTrades.filter(t=>t.asset===filter)).reverse(); const latest=[...accountTrades].reverse()[0];
+  const assets=["ALL",...new Set(accountTrades.map(t=>t.asset))];
+  const latest=[...accountTrades].reverse()[0];
   const periodData=useMemo(()=>Object.values(accountTrades.reduce((a,t)=>{const k=periodKey(t.created_at,period);a[k]||={name:k,profit:0,r:0,trades:0};a[k].profit+=Number(t.profit||0);a[k].r+=Number(t.r_result||0);a[k].trades++;return a;},{})),[accountTrades,period]);
+
+  const ledgerRows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const rows = accountTrades.filter((t) => {
+      if (filter !== "ALL" && t.asset !== filter) return false;
+      if (directionFilter !== "ALL" && t.direction !== directionFilter) return false;
+      if (resultFilter !== "ALL" && t.result !== resultFilter) return false;
+      if (!q) return true;
+      return [t.id, t.asset, t.direction, t.result, t.account_name || "Main", t.notes || "", t.feeling || ""]
+        .some((v) => String(v).toLowerCase().includes(q));
+    });
+    const direction = sort.dir === "asc" ? 1 : -1;
+    return rows.sort((a,b) => {
+      const av = sort.key === "created_at" ? new Date(a.created_at).getTime() : sort.key === "account_name" ? (a.account_name || "Main") : a[sort.key];
+      const bv = sort.key === "created_at" ? new Date(b.created_at).getTime() : sort.key === "account_name" ? (b.account_name || "Main") : b[sort.key];
+      if (typeof av === "number" || typeof bv === "number") return (Number(av||0)-Number(bv||0))*direction;
+      return String(av||"").localeCompare(String(bv||""))*direction;
+    });
+  }, [accountTrades, filter, directionFilter, resultFilter, search, sort]);
+
+  const pageCount = Math.max(1, Math.ceil(ledgerRows.length / pageSize));
+  const pagedTrades = ledgerRows.slice((page-1)*pageSize, page*pageSize);
+
+  useEffect(()=>setPage(1),[filter,directionFilter,resultFilter,search,dateRange,accountFilter]);
+  useEffect(()=>{ if(page>pageCount) setPage(pageCount); },[page,pageCount]);
+
+  function toggleSort(key){
+    setSort((current)=>current.key===key?{key,dir:current.dir==="asc"?"desc":"asc"}:{key,dir:"desc"});
+  }
+
+  function openCurveTrade(state){
+    const point=state?.activePayload?.[0]?.payload;
+    if(!point?.tradeId)return;
+    const trade=accountTrades.find((t)=>t.id===point.tradeId);
+    if(trade)setSelectedTrade(trade);
+  }
   const tabTitles={overview:"Performance Dashboard",history:"Trade History",performance:"Performance Analysis",psychology:"Psychology Analytics"};
 
   if(loading)return <main className="center-screen app-bg"><div className="loader-card"><span className="spinner"/>Loading trading data…</div></main>;
@@ -279,6 +369,11 @@ function Dashboard({ profile, theme, onToggleTheme }) {
               {accountNames.map(a=><option key={a} value={a}>{a==="ALL"?"All accounts":a}</option>)}
             </select>
           </label>
+          <div className="date-range" aria-label="Date range">
+            {[["1","Today"],["7","7D"],["30","30D"],["90","90D"],["ALL","All"]].map(([value,label])=>
+              <button key={value} className={dateRange===value?"active":""} onClick={()=>setDateRange(value)}>{label}</button>
+            )}
+          </div>
           <button className="icon-control" onClick={loadTrades} title="Refresh"><RefreshCw size={15}/></button>
           <ThemeToggle theme={theme} onToggle={onToggleTheme} compact/>
           <button className="icon-control" onClick={()=>supabase.auth.signOut()} title="Sign out"><LogOut size={15}/></button>
@@ -310,16 +405,32 @@ function Dashboard({ profile, theme, onToggleTheme }) {
           <section className="overview-grid">
             <div className="workspace-section equity-section">
               <div className="section-head">
-                <div><h2>Equity</h2><p>Cumulative realised USD profit</p></div>
+                <div><h2>Equity</h2><p>Cumulative realised performance · click a point to open the trade</p></div>
+                <div className="metric-switch">
+                  <button className={chartMetric==="profit"?"active":""} onClick={()=>setChartMetric("profit")}>$</button>
+                  <button className={chartMetric==="r"?"active":""} onClick={()=>setChartMetric("r")}>R</button>
+                </div>
               </div>
               <div className="chart-wrap terminal-chart">
-                <ResponsiveContainer width="100%" height={360}>
-                  <AreaChart data={analytics.curve} margin={{top:8,right:4,left:-12,bottom:0}}>
+                <ResponsiveContainer width="100%" height={300}>
+                  <AreaChart data={analytics.curve} margin={{top:8,right:4,left:-12,bottom:0}} onClick={openCurveTrade}>
                     <CartesianGrid stroke={chartColors.grid} vertical={false}/>
                     <XAxis dataKey="trade" stroke={chartColors.axis} tickLine={false} axisLine={false} fontSize={10}/>
-                    <YAxis stroke={chartColors.axis} tickLine={false} axisLine={false} fontSize={10} tickFormatter={v=>`$${v}`}/>
-                    <Tooltip contentStyle={{background:chartColors.tooltipBg,border:`1px solid ${chartColors.tooltipBorder}`,borderRadius:0,color:chartColors.tooltipText}} formatter={v=>[`$${Number(v).toFixed(2)}`,"Equity"]}/>
-                    <Area type="monotone" dataKey="profit" stroke="#2563eb" fill="none" strokeWidth={1.8}/>
+                    <YAxis stroke={chartColors.axis} tickLine={false} axisLine={false} fontSize={10} tickFormatter={v=>chartMetric==="profit"?`${v}`:`${v}R`}/>
+                    <Tooltip content={<EquityTooltip metric={chartMetric}/>}/>
+                    <Area type="monotone" dataKey={chartMetric} stroke={theme==="dark"?"#60a5fa":"#2563eb"} fill="none" strokeWidth={1.8} activeDot={{r:4,cursor:"pointer"}}/>
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="drawdown-chart">
+                <div className="drawdown-label"><span>Drawdown</span><small>{chartMetric==="profit"?"USD":"R"}</small></div>
+                <ResponsiveContainer width="100%" height={105}>
+                  <AreaChart data={analytics.curve} margin={{top:4,right:4,left:-12,bottom:0}}>
+                    <CartesianGrid stroke={chartColors.grid} vertical={false}/>
+                    <XAxis dataKey="trade" hide/>
+                    <YAxis stroke={chartColors.axis} tickLine={false} axisLine={false} fontSize={9} tickFormatter={v=>chartMetric==="profit"?`${v}`:`${v}R`}/>
+                    <Tooltip content={<EquityTooltip metric={chartMetric}/>}/>
+                    <Area type="monotone" dataKey={chartMetric==="profit"?"drawdownProfit":"drawdownR"} stroke={chartColors.axis} fill="none" strokeWidth={1.2}/>
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -359,17 +470,41 @@ function Dashboard({ profile, theme, onToggleTheme }) {
         </>}
 
         {tab==="history"&&<section className="workspace-section">
-          <div className="section-head">
-            <div><h2>Trade ledger</h2><p>Every journal entry in the selected account scope</p></div>
+          <div className="section-head ledger-heading">
+            <div><h2>Trade ledger</h2><p>{ledgerRows.length} matching trades in the current date/account scope</p></div>
+          </div>
+          <div className="ledger-toolbar">
+            <input className="ledger-search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search ID, asset, notes, feeling…" />
             <label className="inline-filter"><span>Asset</span><select value={filter} onChange={e=>setFilter(e.target.value)}>{assets.map(a=><option key={a}>{a}</option>)}</select></label>
+            <label className="inline-filter"><span>Side</span><select value={directionFilter} onChange={e=>setDirectionFilter(e.target.value)}><option>ALL</option><option>Long</option><option>Short</option></select></label>
+            <label className="inline-filter"><span>Result</span><select value={resultFilter} onChange={e=>setResultFilter(e.target.value)}><option>ALL</option><option>TP</option><option>SL</option><option>BE</option><option>Manual</option></select></label>
           </div>
           <div className="table-wrap ledger-wrap">
             <table className="ledger-table">
-              <thead><tr><th>ID</th><th>Date</th><th>Account</th><th>Asset</th><th>Side</th><th>Result</th><th>Plan</th><th>Actual R</th><th>P&L</th><th>Image</th></tr></thead>
-              <tbody>{visible.map(t=>{const r=Number(t.r_result||0),p=Number(t.profit||0);return <tr key={t.id} onClick={()=>setSelectedTrade(t)}>
+              <thead><tr>
+                <th><SortHead label="ID" field="id" sort={sort} onSort={toggleSort}/></th>
+                <th><SortHead label="Date" field="created_at" sort={sort} onSort={toggleSort}/></th>
+                <th><SortHead label="Account" field="account_name" sort={sort} onSort={toggleSort}/></th>
+                <th><SortHead label="Asset" field="asset" sort={sort} onSort={toggleSort}/></th>
+                <th><SortHead label="Side" field="direction" sort={sort} onSort={toggleSort}/></th>
+                <th><SortHead label="Result" field="result" sort={sort} onSort={toggleSort}/></th>
+                <th><SortHead label="Plan" field="rr" sort={sort} onSort={toggleSort}/></th>
+                <th><SortHead label="Actual R" field="r_result" sort={sort} onSort={toggleSort}/></th>
+                <th><SortHead label="P&L" field="profit" sort={sort} onSort={toggleSort}/></th>
+                <th>Image</th>
+              </tr></thead>
+              <tbody>{pagedTrades.map(t=>{const r=Number(t.r_result||0),p=Number(t.profit||0);return <tr key={t.id} onClick={()=>setSelectedTrade(t)}>
                 <td className="mono">#{t.id}</td><td>{new Date(t.created_at).toLocaleDateString()}</td><td>{t.account_name || "Main"}</td><td><strong>{t.asset}</strong></td><td>{t.direction}</td><td>{t.result}</td><td>1:{Number(t.rr||0).toFixed(2)}</td><td className={r>=0?"positive":"negative"}>{r>=0?"+":""}{r.toFixed(2)}R</td><td className={p>=0?"positive":"negative"}>{money(p)}</td><td>{t.photo_file_id?"View":"—"}</td>
               </tr>})}</tbody>
             </table>
+          </div>
+          <div className="ledger-pagination">
+            <span>{ledgerRows.length ? ((page-1)*pageSize)+1 : 0}–{Math.min(page*pageSize,ledgerRows.length)} of {ledgerRows.length}</span>
+            <div>
+              <button disabled={page<=1} onClick={()=>setPage(p=>Math.max(1,p-1))}>Previous</button>
+              <span>Page {page} / {pageCount}</span>
+              <button disabled={page>=pageCount} onClick={()=>setPage(p=>Math.min(pageCount,p+1))}>Next</button>
+            </div>
           </div>
         </section>}
 
