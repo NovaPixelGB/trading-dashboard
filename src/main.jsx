@@ -12,7 +12,7 @@ import {
   Bar,
 } from "recharts";
 import { supabase } from "./supabase";
-import { LayoutDashboard, ChartNoAxesCombined, History, Target, TrendingUp, UserRound, LogOut, ArrowUp, ArrowDown, Trophy, Layers3, X, RefreshCw, Camera, Brain, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, ChartNoAxesCombined, History, Target, TrendingUp, UserRound, LogOut, ArrowUp, ArrowDown, Trophy, Layers3, X, RefreshCw, Camera, Brain, ShieldCheck, Moon, Sun } from "lucide-react";
 import "./styles.css";
 
 function Icon({ name, size = 18 }) {
@@ -33,9 +33,26 @@ function Icon({ name, size = 18 }) {
     camera: Camera,
     brain: Brain,
     shield: ShieldCheck,
+    moon: Moon,
+    sun: Sun,
   };
   const Component = icons[name] || LayoutDashboard;
   return <Component size={size} strokeWidth={1.8} aria-hidden="true" />;
+}
+
+function ThemeToggle({ theme, onToggle, compact = false }) {
+  return (
+    <button
+      className={compact ? "theme-toggle compact" : "theme-toggle"}
+      type="button"
+      onClick={onToggle}
+      aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+      title={theme === "dark" ? "Light mode" : "Dark mode"}
+    >
+      <Icon name={theme === "dark" ? "sun" : "moon"} size={16} />
+      {!compact && <span>{theme === "dark" ? "Light" : "Dark"}</span>}
+    </button>
+  );
 }
 
 function money(value) {
@@ -96,7 +113,7 @@ function periodKey(dateValue, period) {
   return `W/C ${x.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
 }
 
-function Login({ onSession }) {
+function Login({ onSession, theme, onToggleTheme }) {
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -122,6 +139,7 @@ function Login({ onSession }) {
         </div>
       </section>
       <section className="auth-form-panel">
+        <div className="auth-theme-control"><ThemeToggle theme={theme} onToggle={onToggleTheme} /></div>
         <div className="auth-card">
           <div className="auth-card-heading"><span className="eyebrow">{mode === "login" ? "WELCOME BACK" : "GET STARTED"}</span><h2>{mode === "login" ? "Sign in to your dashboard" : "Create your account"}</h2><p>{mode === "login" ? "Review your trading performance and journal history." : "Create an account, then securely link your Telegram journal."}</p></div>
           <form onSubmit={submit}>
@@ -137,14 +155,14 @@ function Login({ onSession }) {
   );
 }
 
-function LinkTelegram({ onLinked }) {
+function LinkTelegram({ onLinked, theme, onToggleTheme }) {
   const [username, setUsername] = useState(""); const [code, setCode] = useState(""); const [msg, setMsg] = useState(""); const [busy, setBusy] = useState(false);
   async function createLink(e) {
     e.preventDefault(); setBusy(true); setMsg("");
     const { data, error } = await supabase.rpc("start_telegram_link", { p_username: username }); setBusy(false);
     if (error) return setMsg(error.message); setCode(data);
   }
-  return <main className="center-screen app-bg"><section className="auth-card link-card"><div className="brand-logo large"><Icon name="user" size={24} /></div><div className="auth-card-heading"><span className="eyebrow">SECURE CONNECTION</span><h2>Link your Telegram journal</h2><p>Enter the same Telegram username you use with the trading journal bot.</p></div>{!code ? <form onSubmit={createLink}><label>Telegram username</label><div className="username-wrap"><span>@</span><input required value={username} onChange={(e) => setUsername(e.target.value.replace("@", ""))} placeholder="username" /></div><button className="primary" disabled={busy}>{busy ? "Creating link..." : "Continue"}</button></form> : <div className="link-instructions"><p>Send this command to your trading journal bot</p><div className="link-code">/link {code}</div><p className="muted small">This verifies the Telegram account belongs to you.</p><button className="primary" onClick={onLinked}>I've linked it</button><button className="secondary-button" onClick={() => setCode("")}>Use a different username</button></div>}{msg && <div className="message">{msg}</div>}</section></main>;
+  return <main className="center-screen app-bg"><div className="page-theme-control"><ThemeToggle theme={theme} onToggle={onToggleTheme} /></div><section className="auth-card link-card"><div className="brand-logo large"><Icon name="user" size={24} /></div><div className="auth-card-heading"><span className="eyebrow">SECURE CONNECTION</span><h2>Link your Telegram journal</h2><p>Enter the same Telegram username you use with the trading journal bot.</p></div>{!code ? <form onSubmit={createLink}><label>Telegram username</label><div className="username-wrap"><span>@</span><input required value={username} onChange={(e) => setUsername(e.target.value.replace("@", ""))} placeholder="username" /></div><button className="primary" disabled={busy}>{busy ? "Creating link..." : "Continue"}</button></form> : <div className="link-instructions"><p>Send this command to your trading journal bot</p><div className="link-code">/link {code}</div><p className="muted small">This verifies the Telegram account belongs to you.</p><button className="primary" onClick={onLinked}>I've linked it</button><button className="secondary-button" onClick={() => setCode("")}>Use a different username</button></div>}{msg && <div className="message">{msg}</div>}</section></main>;
 }
 
 function TradeImage({ trade, className = "trade-shot", compact = false }) {
@@ -198,7 +216,7 @@ function TradeModal({ trade, onClose }) {
   </div></div>;
 }
 
-function Dashboard({ profile }) {
+function Dashboard({ profile, theme, onToggleTheme }) {
   const [trades, setTrades] = useState([]); const [accounts, setAccounts] = useState([]); const [loading, setLoading] = useState(true); const [filter, setFilter] = useState("ALL"); const [accountFilter, setAccountFilter] = useState("ALL"); const [period, setPeriod] = useState("week"); const [selectedTrade, setSelectedTrade] = useState(null); const [tab, setTab] = useState("overview");
   useEffect(() => { loadTrades(); }, []);
   async function loadTrades() {
@@ -214,6 +232,7 @@ function Dashboard({ profile }) {
 
   const accountNames = useMemo(() => ["ALL", ...new Set([...accounts.map((a) => a.name), ...trades.map((t) => t.account_name || "Main")])], [accounts, trades]);
   const accountTrades = useMemo(() => accountFilter === "ALL" ? trades : trades.filter((t) => (t.account_name || "Main") === accountFilter), [trades, accountFilter]);
+  const chartColors = theme === "dark" ? { grid: "#263244", axis: "#8b9aaf", tooltipBg: "#111827", tooltipBorder: "#334155", tooltipText: "#e5e7eb" } : { grid: "#e2e8f0", axis: "#64748b", tooltipBg: "#ffffff", tooltipBorder: "#cbd5e1", tooltipText: "#0f172a" };
 
   const analytics = useMemo(() => {
     const total = accountTrades.length; const wins = accountTrades.filter((t) => Number(t.r_result) > 0).length; const losses = accountTrades.filter((t) => Number(t.r_result) < 0).length; const breakevens = accountTrades.filter((t) => Number(t.r_result) === 0).length;
@@ -236,16 +255,16 @@ function Dashboard({ profile }) {
   if(!trades.length)return <main className="center-screen app-bg"><section className="empty-card"><div className="brand-logo large"><Icon name="chart" size={24}/></div><span className="eyebrow">NO JOURNAL DATA</span><h2>No trading data found</h2><p>No trades were found for @{profile.telegram_username}.</p><button className="primary compact" onClick={loadTrades}><Icon name="refresh" size={17}/>Refresh data</button></section></main>;
 
   return <div className="dashboard-shell"><aside className="sidebar"><div className="brand-lockup sidebar-brand"><div className="brand-logo"><Icon name="trend" size={20}/></div><span>TradeLog</span></div><nav className="side-nav">{[["overview","grid","Overview"],["history","history","Trade History"],["performance","chart","Performance"],["psychology","brain","Psychology"]].map(([id,icon,label])=><button key={id} className={tab===id?"active":""} onClick={()=>setTab(id)}><Icon name={icon}/><span>{label}</span></button>)}</nav><div className="sidebar-account"><span className="eyebrow">TELEGRAM</span><strong>@{profile.telegram_username}</strong><small>Securely linked</small></div></aside>
-  <main className="dashboard-main"><header className="topbar"><div><span className="eyebrow">TRADING ANALYTICS</span><h1>{tabTitles[tab]}</h1><p>@{profile.telegram_username} · {accountFilter==="ALL"?"All accounts":accountFilter}</p></div><div className="topbar-actions"><div className="filter-wrap account-switcher"><label>Account</label><select value={accountFilter} onChange={e=>{setAccountFilter(e.target.value);setFilter("ALL");}}>{accountNames.map(a=><option key={a} value={a}>{a==="ALL"?"All Accounts":a}</option>)}</select></div><span className="live-pill">Live data · Read only</span><button className="ghost-button" onClick={loadTrades}><Icon name="refresh" size={16}/>Refresh</button><button className="ghost-button" onClick={()=>supabase.auth.signOut()}><Icon name="logout" size={16}/>Sign out</button></div></header>
+  <main className="dashboard-main"><header className="topbar"><div><span className="eyebrow">TRADING ANALYTICS</span><h1>{tabTitles[tab]}</h1><p>@{profile.telegram_username} · {accountFilter==="ALL"?"All accounts":accountFilter}</p></div><div className="topbar-actions"><div className="filter-wrap account-switcher"><label>Account</label><select value={accountFilter} onChange={e=>{setAccountFilter(e.target.value);setFilter("ALL");}}>{accountNames.map(a=><option key={a} value={a}>{a==="ALL"?"All Accounts":a}</option>)}</select></div><span className="live-pill">Live data · Read only</span><ThemeToggle theme={theme} onToggle={onToggleTheme} compact/><button className="ghost-button" onClick={loadTrades}><Icon name="refresh" size={16}/>Refresh</button><button className="ghost-button" onClick={()=>supabase.auth.signOut()}><Icon name="logout" size={16}/>Sign out</button></div></header>
 
   {tab==="overview"&&<><section className="primary-metrics"><MetricCard label="Net P&L" value={money(analytics.totalProfit)} note={`${analytics.totalR>=0?"+":""}${analytics.totalR.toFixed(2)}R overall`} icon="trend" tone={analytics.totalProfit>=0?"positive":"negative"}/><MetricCard label="Win rate" value={`${analytics.winrate.toFixed(1)}%`} note={`${analytics.wins}W · ${analytics.losses}L · ${analytics.breakevens}BE`} icon="trophy" tone={analytics.winrate>=50?"positive":"neutral"}/><MetricCard label="Profit factor" value={analytics.pf===Infinity?"∞":analytics.pf.toFixed(2)} note="Gross profit ÷ gross loss" icon="layers" tone={analytics.pf>=1?"positive":"negative"}/><MetricCard label="Avg planned R:R" value={`1:${analytics.avgRR.toFixed(2)}`} note={`${analytics.total} journalled trades`} icon="target" tone="positive"/></section>
-  <section className="content-grid main-grid"><article className="panel hero-panel"><PanelTitle title="Equity curve" subtitle="Cumulative realised USD profit"/><div className="chart-wrap"><ResponsiveContainer width="100%" height={320}><AreaChart data={analytics.curve} margin={{top:8,right:8,left:-14,bottom:0}}><CartesianGrid stroke="#e2e8f0" vertical={false} strokeDasharray="4 4"/><XAxis dataKey="trade" stroke="#64748b" tickLine={false} axisLine={false} fontSize={11}/><YAxis stroke="#64748b" tickLine={false} axisLine={false} fontSize={11} tickFormatter={v=>`$${v}`}/><Tooltip contentStyle={{background:"#ffffff",border:"1px solid #cbd5e1",borderRadius:0,color:"#0f172a"}} formatter={v=>[`$${Number(v).toFixed(2)}`,"Equity"]}/><Area type="monotone" dataKey="profit" stroke="#2563eb" fill="none" strokeWidth={2}/></AreaChart></ResponsiveContainer></div></article><aside className="snapshot-stack"><MetricCard label="Max drawdown" value={money(analytics.maxDrawdown)} note="Peak-to-trough realised equity" icon="arrowDown" tone="negative"/><MetricCard label="Best win streak" value={`${analytics.winStreak} trades`} note={`Worst losing streak: ${analytics.lossStreak}`} icon="trophy" tone="positive"/><MetricCard label="Most traded" value={analytics.mostTraded} note={`${analytics.partialCount} trades used partials`} icon="layers"/></aside></section>
+  <section className="content-grid main-grid"><article className="panel hero-panel"><PanelTitle title="Equity curve" subtitle="Cumulative realised USD profit"/><div className="chart-wrap"><ResponsiveContainer width="100%" height={320}><AreaChart data={analytics.curve} margin={{top:8,right:8,left:-14,bottom:0}}><CartesianGrid stroke={chartColors.grid} vertical={false} strokeDasharray="4 4"/><XAxis dataKey="trade" stroke={chartColors.axis} tickLine={false} axisLine={false} fontSize={11}/><YAxis stroke={chartColors.axis} tickLine={false} axisLine={false} fontSize={11} tickFormatter={v=>`$${v}`}/><Tooltip contentStyle={{background:chartColors.tooltipBg,border:`1px solid ${chartColors.tooltipBorder}`,borderRadius:0,color:chartColors.tooltipText}} formatter={v=>[`$${Number(v).toFixed(2)}`,"Equity"]}/><Area type="monotone" dataKey="profit" stroke="#2563eb" fill="none" strokeWidth={2}/></AreaChart></ResponsiveContainer></div></article><aside className="snapshot-stack"><MetricCard label="Max drawdown" value={money(analytics.maxDrawdown)} note="Peak-to-trough realised equity" icon="arrowDown" tone="negative"/><MetricCard label="Best win streak" value={`${analytics.winStreak} trades`} note={`Worst losing streak: ${analytics.lossStreak}`} icon="trophy" tone="positive"/><MetricCard label="Most traded" value={analytics.mostTraded} note={`${analytics.partialCount} trades used partials`} icon="layers"/></aside></section>
   {latest&&<section className="panel latest-trade-panel"><PanelTitle title="Latest trade" subtitle="Screenshot saved from your Telegram journal" action={<button className="row-action" onClick={()=>setSelectedTrade(latest)}>Open trade</button>}/><div className="latest-trade-grid"><div className="latest-image"><TradeImage trade={latest} compact/></div><div className="latest-stats"><div><span>Asset</span><b>{latest.asset}</b></div><div><span>Direction</span><b>{latest.direction}</b></div><div><span>Actual R</span><b className={Number(latest.r_result)>=0?"positive":"negative"}>{Number(latest.r_result)>=0?"+":""}{Number(latest.r_result||0).toFixed(2)}R</b></div><div><span>Profit</span><b className={Number(latest.profit)>=0?"positive":"negative"}>{money(latest.profit)}</b></div></div></div></section>}</>}
 
   {tab==="history"&&<section className="panel"><PanelTitle title="Trade history" subtitle="Click any trade to view full details and its Telegram screenshot" action={<div className="filter-wrap"><label>Asset</label><select value={filter} onChange={e=>setFilter(e.target.value)}>{assets.map(a=><option key={a}>{a}</option>)}</select></div>}/><div className="table-wrap"><table><thead><tr><th>Trade</th><th>Date</th><th>Account</th><th>Asset</th><th>Side</th><th>Result</th><th>Planned R:R</th><th>Actual R</th><th>Profit</th><th>Photo</th></tr></thead><tbody>{visible.map(t=>{const r=Number(t.r_result||0),p=Number(t.profit||0);return <tr key={t.id} className="click-row" onClick={()=>setSelectedTrade(t)}><td><span className="trade-id">#{t.id}</span></td><td>{new Date(t.created_at).toLocaleDateString()}</td><td><span className="account-chip">{t.account_name || "Main"}</span></td><td><strong className="asset-name">{t.asset}</strong></td><td><span className={`direction-chip ${String(t.direction).toLowerCase()}`}>{t.direction}</span></td><td><span className={`result-pill ${r>0?"win":r<0?"loss":"be"}`}>{t.result}</span></td><td>1:{Number(t.rr||0).toFixed(2)}</td><td className={r>=0?"positive":"negative"}>{r>=0?"+":""}{r.toFixed(2)}R</td><td className={p>=0?"positive":"negative"}>{money(p)}</td><td>{t.photo_file_id?<span className="photo-chip"><Icon name="camera" size={13}/>View</span>:"—"}</td></tr>})}</tbody></table></div></section>}
 
   {tab==="performance"&&<><section className="primary-metrics"><MetricCard label="Best asset" value={analytics.bestAsset} note={analytics.byAsset[0]?money(analytics.byAsset[0].profit):"No data"} icon="trophy" tone="positive"/><MetricCard label="Average win" value={`${analytics.avgWin>=0?"+":""}${analytics.avgWin.toFixed(2)}R`} note={`${analytics.wins} winning trades`} icon="arrowUp" tone="positive"/><MetricCard label="Average loss" value={`${analytics.avgLoss.toFixed(2)}R`} note={`${analytics.losses} losing trades`} icon="arrowDown" tone="negative"/><MetricCard label="Expectancy" value={`${analytics.expectancy>=0?"+":""}${analytics.expectancy.toFixed(2)}R`} note="Average result per trade" icon="target" tone={analytics.expectancy>=0?"positive":"negative"}/></section>
-  <section className="content-grid two-column-grid"><article className="panel"><PanelTitle title="Asset performance" subtitle="Realised P&L contribution by market"/><div className="asset-bars">{analytics.byAsset.map(x=>{const max=Math.max(...analytics.byAsset.map(a=>Math.abs(a.profit)),1);return <div className="asset-bar" key={x.asset}><div><strong>{x.asset}</strong><span>{x.trades} trades · {x.winrate.toFixed(0)}% WR</span></div><div className="bar-track"><span style={{width:`${Math.max(6,Math.abs(x.profit)/max*100)}%`}} className={x.profit>=0?"bar-positive":"bar-negative"}/></div><b className={x.profit>=0?"positive":"negative"}>{money(x.profit)}</b></div>})}</div></article><article className="panel"><PanelTitle title="Period performance" subtitle="Compare realised results over time" action={<div className="segmented-control">{["day","week","month"].map(p=><button key={p} className={period===p?"active":""} onClick={()=>setPeriod(p)}>{p==="day"?"Daily":p==="week"?"Weekly":"Monthly"}</button>)}</div>}/><div className="chart-wrap compact-chart"><ResponsiveContainer width="100%" height={270}><BarChart data={periodData}><CartesianGrid stroke="#e2e8f0" vertical={false} strokeDasharray="4 4"/><XAxis dataKey="name" stroke="#64748b" tickLine={false} axisLine={false} fontSize={10}/><YAxis stroke="#64748b" tickLine={false} axisLine={false} fontSize={10}/><Tooltip contentStyle={{background:"#ffffff",border:"1px solid #cbd5e1",borderRadius:0,color:"#0f172a"}} formatter={v=>[`$${Number(v).toFixed(2)}`,"Profit"]}/><Bar dataKey="profit" fill="#2563eb" radius={[0,0,0,0]} maxBarSize={34}/></BarChart></ResponsiveContainer></div></article></section></>}
+  <section className="content-grid two-column-grid"><article className="panel"><PanelTitle title="Asset performance" subtitle="Realised P&L contribution by market"/><div className="asset-bars">{analytics.byAsset.map(x=>{const max=Math.max(...analytics.byAsset.map(a=>Math.abs(a.profit)),1);return <div className="asset-bar" key={x.asset}><div><strong>{x.asset}</strong><span>{x.trades} trades · {x.winrate.toFixed(0)}% WR</span></div><div className="bar-track"><span style={{width:`${Math.max(6,Math.abs(x.profit)/max*100)}%`}} className={x.profit>=0?"bar-positive":"bar-negative"}/></div><b className={x.profit>=0?"positive":"negative"}>{money(x.profit)}</b></div>})}</div></article><article className="panel"><PanelTitle title="Period performance" subtitle="Compare realised results over time" action={<div className="segmented-control">{["day","week","month"].map(p=><button key={p} className={period===p?"active":""} onClick={()=>setPeriod(p)}>{p==="day"?"Daily":p==="week"?"Weekly":"Monthly"}</button>)}</div>}/><div className="chart-wrap compact-chart"><ResponsiveContainer width="100%" height={270}><BarChart data={periodData}><CartesianGrid stroke={chartColors.grid} vertical={false} strokeDasharray="4 4"/><XAxis dataKey="name" stroke={chartColors.axis} tickLine={false} axisLine={false} fontSize={10}/><YAxis stroke={chartColors.axis} tickLine={false} axisLine={false} fontSize={10}/><Tooltip contentStyle={{background:chartColors.tooltipBg,border:`1px solid ${chartColors.tooltipBorder}`,borderRadius:0,color:chartColors.tooltipText}} formatter={v=>[`$${Number(v).toFixed(2)}`,"Profit"]}/><Bar dataKey="profit" fill="#2563eb" radius={[0,0,0,0]} maxBarSize={34}/></BarChart></ResponsiveContainer></div></article></section></>}
 
   {tab==="psychology"&&<><section className="psych-summary">{analytics.feelings.slice(0,3).map((x,i)=><article className="psych-card" key={x.name}><span className="eyebrow">{x.name}</span><strong className={x.r>=0?"positive":"negative"}>{x.winrate.toFixed(0)}% WR</strong><p>{x.r>=0?"+":""}{x.r.toFixed(2)}R · {x.trades} trades</p></article>)}</section><section className="panel psychology-panel"><PanelTitle title="Mindset performance" subtitle="How your recorded psychology correlates with results"/><div className="data-list"><div className="data-list-head psychology-full-layout"><span>Feeling</span><span>Trades</span><span>Win rate</span><span>Avg R</span><span>Total R</span><span>P&L</span></div>{analytics.feelings.map(x=><div className="data-row psychology-full-layout" key={x.name}><strong>{x.name}</strong><span>{x.trades}</span><span>{x.winrate.toFixed(0)}%</span><span className={x.avgR>=0?"positive":"negative"}>{x.avgR>=0?"+":""}{x.avgR.toFixed(2)}R</span><span className={x.r>=0?"positive":"negative"}>{x.r>=0?"+":""}{x.r.toFixed(2)}R</span><span className={x.profit>=0?"positive":"negative"}>{money(x.profit)}</span></div>)}</div>{analytics.feelings.length>0&&<div className="insight-box"><Icon name="brain" size={18}/><div><strong>Journal insight</strong><p>Your best recorded mindset is <b>{[...analytics.feelings].sort((a,b)=>b.r-a.r)[0]?.name}</b>, based on total realised R.</p></div></div>}</section></>}
 
@@ -253,11 +272,30 @@ function Dashboard({ profile }) {
 }
 
 function App() {
-  const [session,setSession]=useState(null); const [profile,setProfile]=useState(undefined);
+  const [session,setSession]=useState(null);
+  const [profile,setProfile]=useState(undefined);
+  const [theme,setTheme]=useState(() => {
+    const saved = localStorage.getItem("tradelog-theme");
+    if (saved === "dark" || saved === "light") return saved;
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  });
+
+  useEffect(()=>{
+    document.documentElement.dataset.theme=theme;
+    document.documentElement.style.colorScheme=theme;
+    localStorage.setItem("tradelog-theme",theme);
+  },[theme]);
+
+  const toggleTheme=()=>setTheme(t=>t==="dark"?"light":"dark");
+
   useEffect(()=>{supabase.auth.getSession().then(({data})=>setSession(data.session));const{data:listener}=supabase.auth.onAuthStateChange((_e,s)=>{setSession(s);setProfile(undefined)});return()=>listener.subscription.unsubscribe()},[]);
   useEffect(()=>{if(session)refreshProfile();else setProfile(undefined)},[session]);
   async function refreshProfile(){const{data,error}=await supabase.from("profiles").select("telegram_username, telegram_user_id").single();if(error&&error.code!=="PGRST116")console.error(error);setProfile(data||null)}
-  if(!session)return <Login onSession={setSession}/>; if(profile===undefined)return <main className="center-screen app-bg"><div className="loader-card"><span className="spinner"/>Loading your dashboard…</div></main>; if(!profile?.telegram_user_id)return <LinkTelegram onLinked={refreshProfile}/>; return <Dashboard profile={profile}/>;
+
+  if(!session)return <Login onSession={setSession} theme={theme} onToggleTheme={toggleTheme}/>;
+  if(profile===undefined)return <main className="center-screen app-bg"><div className="page-theme-control"><ThemeToggle theme={theme} onToggle={toggleTheme}/></div><div className="loader-card"><span className="spinner"/>Loading your dashboard…</div></main>;
+  if(!profile?.telegram_user_id)return <LinkTelegram onLinked={refreshProfile} theme={theme} onToggleTheme={toggleTheme}/>;
+  return <Dashboard profile={profile} theme={theme} onToggleTheme={toggleTheme}/>;
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(<React.StrictMode><App/></React.StrictMode>);
